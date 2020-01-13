@@ -1,0 +1,13 @@
+version: "3.7"
+services:
+
+  ignite:
+    image: apacheignite/ignite:latest
+    ports:
+        - "47500:47500"
+        - "47100:47100" 
+        - "47501:47501"
+        - "10800:10800"
+    environment:
+      - IGNITE_CONFIG=https://raw.githubusercontent.com/apache/ignite/master/examples/config/example-cache.xml
+    
