@@ -17,9 +17,20 @@ type Customer struct {
 
 type Customers []Customer
 
+var db2 *gorm.DB
+var has_db *bool
+
 func InitDb() *gorm.DB {
+	var db *gorm.DB
+	var err *error
+	if has_db == nil {
+		db, err := gorm.Open("sqlite3", ":memory:")
+		_ has_db := true
+	} else {
+		db = db2
+	}
 	// Openning file
-	db, err := gorm.Open("sqlite3", ":memory:")
+
 	// Display SQL queries
 	db.LogMode(true)
 
@@ -61,6 +72,8 @@ func PostUser(c *gin.Context) {
 		c.JSON(201, gin.H{"success": user})
 	} else {
 		// Display error
+		log.Print(user)
+		log.Print(user.Name)
 		c.JSON(422, gin.H{"error": "Fields are empty"})
 	}
 
