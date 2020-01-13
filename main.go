@@ -17,20 +17,10 @@ type Customer struct {
 
 type Customers []Customer
 
-var db2 *gorm.DB
-var has_db *bool
-
 func InitDb() *gorm.DB {
-	var db *gorm.DB
-	var err *error
-	if has_db == nil {
-		db, err := gorm.Open("sqlite3", ":memory:")
-		_ has_db := true
-	} else {
-		db = db2
-	}
-	// Openning file
 
+	// Openning file
+	db, err := gorm.Open("sqlite3", "local.db")
 	// Display SQL queries
 	db.LogMode(true)
 
