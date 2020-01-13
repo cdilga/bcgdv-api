@@ -1,18 +1,10 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"flag"
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"time"
+	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	//"github.com/mattn/go-sqlite3"
-	"github.com/gorilla/mux"
+	_ "github.com/mattn/go-sqlite3"
+	"log"
 )
 
 type Customer struct {
@@ -25,41 +17,10 @@ type Customer struct {
 
 type Customers []Customer
 
-func CreateCustomerHandler(w http.ResponseWriter, r *http.Request) {
-	db := InitDb()
-	defer db.Close()
-
-	var user Customers
-	r.Bind(&user)
-
-	if user.Firstname != "" && user.Lastname != "" {
-		// INSERT INTO "users" (name) VALUES (user.Name);
-		db.Create(&user)
-		// Display error
-		c.JSON(201, w.WriteHeader{"success": user})
-	} else {
-		// Display error
-		c.JSON(422, w.WriteHeader{"error": "Fields are empty"})
-	}
-}
-
-func GetCustomerHandler(w http.ResponseWriter, r *http.Request) {
-	// Connection to the database
-	db := InitDb()
-	// Close connection database
-	defer db.Close()
-
-	var users []Users
-	// SELECT * FROM users
-	db.Find(&users)
-
-	// Display JSON result
-	r.JSON(200, users)
-}
-
 func InitDb() *gorm.DB {
 	// Openning file
 	db, err := gorm.Open("sqlite3", ":memory:")
+	// Display SQL queries
 	db.LogMode(true)
 
 	// Error
@@ -67,77 +28,97 @@ func InitDb() *gorm.DB {
 		panic(err)
 	}
 	// Creating the table
-	if !db.HasTable(&Customers{}) {
-		db.CreateTable(&Customers{})
-		db.Set("gorm:table_options", "ENGINE=InnoDB").CreateTable(&Customers{})
+	if !db.HasTable(&Customer{}) {
+		db.CreateTable(&Customer{})
+		db.Set("gorm:table_options", "ENGINE=InnoDB").CreateTable(&Customer{})
 	}
 
 	return db
 }
 
-
-func NotifyHandler(w http.ResponseWriter, r *http.Request) {
-	customers := Customers{
-		Customer{Name: "John Doe", Address: "123 Seasame St", Email: "email@example.com", Phone: "04216117783"},
-	}
-
-	fmt.Println("Endpoint Hit: Notify")
-	json.NewEncoder(w).Encode(customers)
-}
-
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Category: %v\n", vars["category"])
-}
-
 func main() {
+	r := gin.Default()
 
-	var wait time.Duration
-	flag.DurationVar(&wait, "graceful-timeout", time.Second*5, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
-	flag.Parse()
+	r.POST("/users", PostUser)
+	r.GET("/users", GetUsers)
+	r.GET("/users/:id", GetUser)
+	r.POST("/notify/:id", NotifyUser)
 
-	r := mux.NewRouter()
-	r.HandleFunc("/", HomeHandler)
-	r.HandleFunc("/customer", CreateCustomerHandler).Methods("POST")
-	r.HandleFunc("/customer", GetCustomerHandler).Methods("GET")
-	r.HandleFunc("/notify", NotifyHandler).Methods("POST")
-	http.Handle("/", r)
-	// Add your routes as needed
+	r.Run(":8081")
+}
 
-	srv := &http.Server{
-		Addr: "0.0.0.0:8081",
-		// Good practice to set timeouts to avoid Slowloris attacks.
-		WriteTimeout: time.Second * 15,
-		ReadTimeout:  time.Second * 15,
-		IdleTimeout:  time.Second * 60,
-		Handler:      r, // Pass our instance of gorilla/mux in.
+func PostUser(c *gin.Context) {
+	db := InitDb()
+	defer db.Close()
+
+	var user Customer
+	c.Bind(&user)
+
+	if user.Name != "" && user.Email != "" {
+		// INSERT INTO "users" (name) VALUES (user.Name);
+		db.Create(&user)
+		// Display error
+		c.JSON(201, gin.H{"success": user})
+	} else {
+		// Display error
+		c.JSON(422, gin.H{"error": "Fields are empty"})
 	}
 
-	// Run our server in a goroutine so that it doesn't block.
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			log.Println(err)
-		}
-	}()
+}
 
-	c := make(chan os.Signal, 1)
-	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
-	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/) will not be caught.
-	signal.Notify(c, os.Interrupt)
+func NotifyUser(c *gin.Context) {
+	db := InitDb()
+	defer db.Close()
 
-	// Block until we receive our signal.
-	<-c
+	id := c.Params.ByName("id")
+	var user Customer
+	// SELECT * FROM users WHERE id = 1;
+	db.First(&user, id)
 
-	// Create a deadline to wait for.
-	ctx, cancel := context.WithTimeout(context.Background(), wait)
-	defer cancel()
-	// Doesn't block if no connections, but will otherwise wait
-	// until the timeout deadline.
-	srv.Shutdown(ctx)
-	// Optionally, you could run srv.Shutdown in a goroutine and block on
-	// <-ctx.Done() if your application should wait for other services
-	// to finalize based on context cancellation.
-	log.Println("shutting down")
-	os.Exit(0)
+	log.Print("Notifying email address " + user.Email)
+
+	if user.Id != 0 {
+		// Display JSON result
+		c.JSON(200, user)
+	} else {
+		// Display JSON error
+		c.JSON(404, gin.H{"error": "User not found"})
+	}
+
+}
+
+func GetUsers(c *gin.Context) {
+	// Connection to the database
+	db := InitDb()
+	// Close connection database
+	defer db.Close()
+
+	var users []Customer
+	// SELECT * FROM users
+	db.Find(&users)
+
+	// Display JSON result
+	c.JSON(200, users)
+
+}
+
+func GetUser(c *gin.Context) {
+	// Connection to the database
+	db := InitDb()
+	// Close connection database
+	defer db.Close()
+
+	id := c.Params.ByName("id")
+	var user Customer
+	// SELECT * FROM users WHERE id = 1;
+	db.First(&user, id)
+
+	if user.Id != 0 {
+		// Display JSON result
+		c.JSON(200, user)
+	} else {
+		// Display JSON error
+		c.JSON(404, gin.H{"error": "User not found"})
+	}
+
 }

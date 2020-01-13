@@ -8,6 +8,7 @@ RUN apk --update upgrade && \
 RUN mkdir /lib64 && ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2
 RUN apk add libc-dev
 RUN go get github.com/mattn/go-sqlite3
+RUN go get github.com/gin-gonic/gin
 RUN go get -u github.com/gorilla/mux
 RUN go mod init main
 RUN go install
